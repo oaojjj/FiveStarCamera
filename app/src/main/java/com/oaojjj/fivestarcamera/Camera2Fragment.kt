@@ -1,24 +1,20 @@
 package com.oaojjj.fivestarcamera
 
 import android.Manifest
-import android.app.AlertDialog
-import android.app.Dialog
 import android.content.Context
-import android.content.DialogInterface
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.*
 import android.hardware.camera2.*
 import android.hardware.camera2.CameraCaptureSession.CaptureCallback
+import android.media.ExifInterface
 import android.media.Image
 import android.media.ImageReader
 import android.media.ImageReader.OnImageAvailableListener
-import android.net.Uri
-import android.os.Bundle
-import android.os.Environment
-import android.os.Handler
-import android.os.HandlerThread
+import android.media.MediaScannerConnection
+import android.nfc.Tag
+import android.os.*
+import android.provider.MediaStore
 import android.util.Log
 import android.util.Size
 import android.util.SparseIntArray
@@ -29,11 +25,16 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.annotation.NonNull
+import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
+import com.bumptech.glide.Glide
+import com.oaojjj.fivestarcamera.activity.CameraActivity
+import com.oaojjj.fivestarcamera.dialog.ConfirmationDialog
+import com.oaojjj.fivestarcamera.dialog.ErrorDialog
+import kotlinx.android.synthetic.main.activity_camera.*
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -42,21 +43,25 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
+import kotlin.math.max
 
 @Suppress("DEPRECATED_IDENTITY_EQUALS")
+@RequiresApi(Build.VERSION_CODES.Q)
 class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCallback {
     companion object {
+        private lateinit var mSuper: CameraActivity
+
         /**
          * Conversion from screen rotation to JPEG orientation.
          */
+        const val REQUEST_PERMISSION = 1
         private val ORIENTATIONS = SparseIntArray()
-        private const val REQUEST_PERMISSION = 1
         private const val FRAGMENT_DIALOG = "dialog"
 
         /**
          * Tag for the [Log].
          */
-        private const val TAG = "Camera2BasicFragment"
+        private const val TAG = "MyCameraProject"
 
         /**
          * Camera state: Showing camera preview.
@@ -144,7 +149,8 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
             }
         }
 
-        fun newInstance(): Camera2Fragment {
+        fun newInstance(cameraActivity: CameraActivity): Camera2Fragment {
+            mSuper = cameraActivity
             return Camera2Fragment()
         }
 
@@ -155,6 +161,84 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
             ORIENTATIONS.append(Surface.ROTATION_270, 180)
         }
     }
+
+    private fun exifOrientationToDegrees(exifOrientation: Int): Int {
+        return when (exifOrientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> {
+                90
+            }
+            ExifInterface.ORIENTATION_ROTATE_180 -> {
+                180;
+            }
+            ExifInterface.ORIENTATION_ROTATE_270 -> {
+                270;
+            }
+            else -> 0
+        }
+    }
+
+    private fun rotate(bitmap: Bitmap, degrees: Int): Bitmap {
+        if (degrees != 0) {
+            val m = Matrix()
+            m.setRotate(
+                degrees.toFloat(),
+                (bitmap.width / 2).toFloat(),
+                (bitmap.height / 2).toFloat()
+            )
+            val converted = Bitmap.createBitmap(
+                bitmap,
+                0,
+                0,
+                bitmap.width,
+                bitmap.height,
+                m,
+                true
+            )
+            if (bitmap != converted) {
+                return converted
+            }
+
+        }
+        return bitmap
+    }
+
+    // 마지막 이미지 가져오기
+    @RequiresApi(Build.VERSION_CODES.Q)
+    fun getLatestImage(): Bitmap? {
+        val projection = arrayOf(
+            MediaStore.Images.ImageColumns._ID,
+            MediaStore.Images.ImageColumns.DATA,
+            MediaStore.Images.ImageColumns.BUCKET_DISPLAY_NAME,
+            MediaStore.Images.ImageColumns.DATE_TAKEN,
+            MediaStore.Images.ImageColumns.MIME_TYPE
+        )
+        val cursor = mSuper.baseContext.contentResolver.query(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, null, null,
+            MediaStore.Images.ImageColumns.DATE_TAKEN + " DESC"
+        )
+
+
+        if (cursor!!.moveToFirst()) {
+            val latestImageUri = cursor.getString(1)
+            val imageFile = File(latestImageUri)
+            if (imageFile.exists()) {
+                cursor.close()
+                val exif = ExifInterface(latestImageUri)
+                val exifOrientation = exif.getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL
+                )
+                var bitmap = BitmapFactory.decodeFile(latestImageUri)
+                val exifDegree = exifOrientationToDegrees(exifOrientation)
+                bitmap = rotate(bitmap, exifDegree)
+                return bitmap
+            }
+        }
+
+        cursor.close()
+        return null
+    }
+
 
     /**
      * [TextureView.SurfaceTextureListener] handles several lifecycle events on a
@@ -180,7 +264,16 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
      * permissions
      */
     private var permissions =
-        listOf(Manifest.permission.CAMERA, Manifest.permission.READ_EXTERNAL_STORAGE)
+        listOf(
+            Manifest.permission.CAMERA,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        )
+
+    /**
+     * 사진을 찍은 후의 썸네일에 들어가는 이미지
+     */
+    private var latestImage: Bitmap? = null
 
     /**
      * ID of the current [CameraDevice].
@@ -261,6 +354,7 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
         OnImageAvailableListener { reader ->
             mBackgroundHandler!!.post(
                 ImageSaver(
+                    this,
                     reader.acquireNextImage(),
                     mFile
                 )
@@ -327,7 +421,6 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
                     }
                 }
                 STATE_WAITING_PRECAPTURE -> {
-
                     // CONTROL_AE_STATE can be null on some devices
                     val aeState = result.get(CaptureResult.CONTROL_AE_STATE)
                     if (aeState == null || aeState == CaptureResult.CONTROL_AE_STATE_PRECAPTURE || aeState == CaptureRequest.CONTROL_AE_STATE_FLASH_REQUIRED) {
@@ -355,6 +448,7 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
         }
 
         override fun onCaptureCompleted(
+
             @NonNull session: CameraCaptureSession,
             @NonNull request: CaptureRequest,
             @NonNull result: TotalCaptureResult
@@ -384,10 +478,6 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
         mTextureView = view.findViewById<View>(R.id.texture) as AutoFitTextureView
     }
 
-    override fun onActivityCreated(savedInstanceState: Bundle?) {
-        super.onActivityCreated(savedInstanceState)
-    }
-
     override fun onResume() {
         super.onResume()
         startBackgroundThread()
@@ -410,8 +500,11 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
     }
 
     private fun requestPermission(permission: String) {
-        if (shouldShowRequestPermissionRationale(permission)) {
-            ConfirmationDialog(permission).show(childFragmentManager, FRAGMENT_DIALOG)
+        if (shouldShowRequestPermissionRationale(permission)) { // 사용자가 권한 요청을 거절하면 true 반환
+            ConfirmationDialog(permission).show( // 권한이 필요하다는 요청 다이얼로그 생성
+                childFragmentManager,
+                FRAGMENT_DIALOG
+            )
         } else {
             requestPermissions(arrayOf(permission), REQUEST_PERMISSION)
         }
@@ -457,7 +550,7 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
 
                 // For still image captures, we use the largest available size.
                 val largest = Collections.max(
-                    Arrays.asList(*map.getOutputSizes(ImageFormat.JPEG)),
+                    listOf(*map.getOutputSizes(ImageFormat.JPEG)),
                     CompareSizesByArea()
                 )
                 mImageReader = ImageReader.newInstance(
@@ -547,6 +640,7 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
      * Opens the camera specified by [Camera2BasicFragment.mCameraId].
      */
     private fun openCamera(width: Int, height: Int) {
+        Log.d(TAG, "openCamera")
         permissions.forEach { permission ->
             if (ContextCompat.checkSelfPermission(activity!!, permission)
                 !== PackageManager.PERMISSION_GRANTED
@@ -555,6 +649,7 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
                 return
             }
         }
+        onSetThumbnail()
         setUpCameraOutputs(width, height)
         configureTransform(width, height)
         val activity: FragmentActivity? = activity
@@ -624,9 +719,8 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
     private val luminosityAnalyzer: LuminosityAnalyzer = LuminosityAnalyzer()
     private val previewCallback =
         OnImageAvailableListener { reader ->
-            val image = reader.acquireLatestImage()
-            luminosityAnalyzer.analyze(image)
-            image.close()
+            //luminosityAnalyzer.analyze(image)
+            reader.acquireLatestImage()?.close()
         }
 
     /**
@@ -648,9 +742,10 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
             mPreviewRequestBuilder!!.addTarget(surface)
             mPreviewRequestBuilder!!.addTarget(imageProcessingReader.surface)
             imageProcessingReader.setOnImageAvailableListener(previewCallback, Handler())
+
             // Here, we create a CameraCaptureSession for camera preview.
             mCameraDevice!!.createCaptureSession(
-                Arrays.asList(surface, mImageReader!!.surface, imageProcessingReader.surface),
+                listOf(surface, mImageReader!!.surface, imageProcessingReader.surface),
                 object : CameraCaptureSession.StateCallback() {
                     override fun onConfigured(@NonNull cameraCaptureSession: CameraCaptureSession) {
                         // The camera is already closed
@@ -717,7 +812,7 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
         if (Surface.ROTATION_90 == rotation || Surface.ROTATION_270 == rotation) {
             bufferRect.offset(centerX - bufferRect.centerX(), centerY - bufferRect.centerY())
             matrix.setRectToRect(viewRect, bufferRect, Matrix.ScaleToFit.FILL)
-            val scale = Math.max(
+            val scale = max(
                 viewHeight.toFloat() / mPreviewSize!!.height,
                 viewWidth.toFloat() / mPreviewSize!!.width
             )
@@ -734,13 +829,20 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
      */
     fun takePicture() {
         val now = Date(System.currentTimeMillis())
-        val title = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.KOREA).format(now)
-        mFile = File(activity?.getExternalFilesDir(Environment.DIRECTORY_PICTURES), "${title}.jpg")
+        val title = SimpleDateFormat("yyyyMMdd_HH:mm:ss", Locale.KOREA).format(now)
+        // context?.getExternalFilesDir(Environment.DIRECTORY_DCIM)!!.path 이걸로 하면 sdcard 경로가 나와야 하는데
+        // storage/emulated/0 으로 나와서 일단 하드코딩으로 sdcard 에 저장
+        mFile =
+            File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+                "${title}.jpg"
+            )
         lockFocus()
     }
 
     /**
      * Lock the focus as the first step for a still image capture.
+     * (초점 고정)
      */
     private fun lockFocus() {
         try {
@@ -813,9 +915,8 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
                     @NonNull request: CaptureRequest,
                     @NonNull result: TotalCaptureResult
                 ) {
-                    context?.sendBroadcast(Intent( Intent.ACTION_MEDIA_SCANNER_FINISHED, Uri.fromFile(mFile)));
                     showToast("$mFile 사진이 저장되었습니다.")
-                    Log.d(TAG, mFile.toString())
+                    Log.d(TAG, "onCaptureCompleted:${mFile?.path}")
                     unlockFocus()
                 }
             }
@@ -825,6 +926,28 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
         } catch (e: CameraAccessException) {
             e.printStackTrace()
         }
+    }
+
+    private fun onSetThumbnail() {
+        Log.d(TAG, "onSetThumbnail start")
+        latestImage = getLatestImage()
+        mSuper.iv_thumbnail.post {
+            Glide.with(this).load(latestImage).circleCrop()
+                .into(mSuper.iv_thumbnail)
+        }
+        mSuper.iv_thumbnail.invalidate()
+        Log.d(TAG, "onSetThumbnail finished")
+    }
+
+    private fun onRefreshGallery() {
+        Log.d(TAG, "onRefreshGallery start")
+        if (mFile != null) {
+            MediaScannerConnection.scanFile(
+                context, arrayOf(mFile!!.path),
+                arrayOf(mFile?.name), null
+            )
+        }
+        Log.d(TAG, "onRefreshGallery finished")
     }
 
     /**
@@ -838,7 +961,7 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
         // We have to take that into account and rotate JPEG properly.
         // For devices with orientation of 90, we simply return our mapping from ORIENTATIONS.
         // For devices with orientation of 270, we need to rotate the JPEG 180 degrees.
-        return (ORIENTATIONS[rotation] + mSensorOrientation + 270) % 360
+        return (ORIENTATIONS[rotation] + mSensorOrientation + 270) % 180
     }
 
     /**
@@ -877,42 +1000,6 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
         }
     }
 
-    /**
-     * Saves a JPEG [Image] into the specified [File].
-     */
-    private class ImageSaver(
-        /**
-         * The JPEG image
-         */
-        private val mImage: Image,
-        /**
-         * The file we save the image into.
-         */
-        private val mFile: File?
-    ) :
-        Runnable {
-        override fun run() {
-            val buffer = mImage.planes[0].buffer
-            val bytes = ByteArray(buffer.remaining())
-            buffer[bytes]
-            var output: FileOutputStream? = null
-            try {
-                output = FileOutputStream(mFile)
-                output.write(bytes)
-            } catch (e: IOException) {
-                e.printStackTrace()
-            } finally {
-                mImage.close()
-                if (null != output) {
-                    try {
-                        output.close()
-                    } catch (e: IOException) {
-                        e.printStackTrace()
-                    }
-                }
-            }
-        }
-    }
 
     /**
      * Compares two `Size`s based on their areas.
@@ -927,62 +1014,41 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
     }
 
     /**
-     * Shows an error message dialog.
+     * Saves a JPEG [Image] into the specified [File].
      */
-    class ErrorDialog : DialogFragment() {
-        @NonNull
-        override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-            val activity: FragmentActivity? = activity
-            return AlertDialog.Builder(activity)
-                .setMessage(arguments?.getString(ARG_MESSAGE))
-                .setPositiveButton(
-                    R.string.ok,
-                    DialogInterface.OnClickListener { dialogInterface, i -> activity?.finish() })
-                .create()
-        }
-
-        companion object {
-            private const val ARG_MESSAGE = "message"
-            fun newInstance(message: String?): ErrorDialog {
-                val dialog = ErrorDialog()
-                val args = Bundle()
-                args.putString(ARG_MESSAGE, message)
-                dialog.arguments = args
-                return dialog
+    class ImageSaver(
+        private val camera: Camera2Fragment,
+        private val mImage: Image,
+        private val mFile: File?
+    ) : Runnable {
+        override fun run() {
+            val buffer = mImage.planes[0].buffer
+            val bytes = ByteArray(buffer.remaining())
+            buffer[bytes]
+            var output: FileOutputStream? = null
+            try {
+                output = FileOutputStream(mFile)
+                output.write(bytes)
+                Log.d(TAG, "ImageSaver Finished")
+            } catch (e: IOException) {
+                e.printStackTrace()
+            } finally {
+                mImage.close()
+                if (null != output) {
+                    try {
+                        output.close()
+                    } catch (e: IOException) {
+                        e.printStackTrace()
+                    } finally {
+                        camera.onRefreshGallery()
+                        // 딜레이를 안걸어주면 스캔하는 동시에 썸네일을 만들어버려서 바로 찍은 사진이 썸네일에 적용이 안되서 해결하는데 밤샘.. 메모!!
+                        Thread.sleep(100)
+                        camera.onSetThumbnail()
+                    }
+                }
             }
         }
     }
 
-    /**
-     * Shows OK/Cancel confirmation dialog about camera permission.
-     */
-    class ConfirmationDialog(var permission: String) : DialogFragment() {
-        @NonNull
-        override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-            val parent: Fragment? = parentFragment
-            var permissionString = -1;
-            when (permission) {
-                Manifest.permission.CAMERA -> permissionString = R.string.request_camera_permission
-                Manifest.permission.WRITE_EXTERNAL_STORAGE -> permissionString =
-                    R.string.request_storage_permission
-            }
-            return AlertDialog.Builder(activity)
-                .setMessage(permissionString)
-                .setPositiveButton(
-                    R.string.ok,
-                    DialogInterface.OnClickListener { dialog, which ->
-                        parent?.requestPermissions(
-                            arrayOf(permission),
-                            REQUEST_PERMISSION
-                        )
-                    })
-                .setNegativeButton(
-                    R.string.cancle,
-                    DialogInterface.OnClickListener { dialog, which ->
-                        val activity: FragmentActivity? = parent?.activity
-                        activity?.finish()
-                    })
-                .create()
-        }
-    }
+
 }
