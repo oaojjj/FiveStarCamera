@@ -1,17 +1,13 @@
 package com.oaojjj.fivestarcamera.activity
 
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.drawable.ShapeDrawable
-import android.graphics.drawable.shapes.OvalShape
 import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.util.Log
 import android.view.View
 import androidx.annotation.RequiresApi
 import com.bumptech.glide.Glide
-import com.oaojjj.fivestarcamera.Camera2Fragment
+import com.oaojjj.fivestarcamera.fragment.Camera2Fragment
 import com.oaojjj.fivestarcamera.R
 import kotlinx.android.synthetic.main.activity_camera.*
 

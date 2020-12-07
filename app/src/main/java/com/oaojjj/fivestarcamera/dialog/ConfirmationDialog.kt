@@ -11,7 +11,7 @@ import androidx.annotation.RequiresApi
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
-import com.oaojjj.fivestarcamera.Camera2Fragment
+import com.oaojjj.fivestarcamera.fragment.Camera2Fragment
 import com.oaojjj.fivestarcamera.R
 
 /**

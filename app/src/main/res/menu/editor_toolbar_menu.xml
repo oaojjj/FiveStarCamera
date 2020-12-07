@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/menu_camera"
+        android:icon="@drawable/ic_baseline_photo_camera_24"
+        android:title="카메라"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/menu_move_image"
+        android:title="이동"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/menu_rotation_image"
+        android:title="회전"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/menu_cut_image"
+        android:title="자르기"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/menu_copy_image"
+        android:title="복사"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/menu_rename_image"
+        android:title="이름 변경"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/menu_info_image"
+        android:title="세부 정보"
+        app:showAsAction="never" />
+
+</menu>

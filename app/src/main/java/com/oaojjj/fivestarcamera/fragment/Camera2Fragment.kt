@@ -1,4 +1,4 @@
-package com.oaojjj.fivestarcamera
+package com.oaojjj.fivestarcamera.fragment
 
 import android.Manifest
 import android.content.Context
@@ -12,7 +12,6 @@ import android.media.Image
 import android.media.ImageReader
 import android.media.ImageReader.OnImageAvailableListener
 import android.media.MediaScannerConnection
-import android.nfc.Tag
 import android.os.*
 import android.provider.MediaStore
 import android.util.Log
@@ -31,9 +30,12 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import com.bumptech.glide.Glide
+import com.oaojjj.fivestarcamera.LuminosityAnalyzer
+import com.oaojjj.fivestarcamera.R
 import com.oaojjj.fivestarcamera.activity.CameraActivity
 import com.oaojjj.fivestarcamera.dialog.ConfirmationDialog
 import com.oaojjj.fivestarcamera.dialog.ErrorDialog
+import com.oaojjj.fivestarcamera.view.AutoFitTextureView
 import kotlinx.android.synthetic.main.activity_camera.*
 import java.io.File
 import java.io.FileOutputStream
@@ -162,6 +164,7 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
         }
     }
 
+    // 회전 각도 구하기
     private fun exifOrientationToDegrees(exifOrientation: Int): Int {
         return when (exifOrientation) {
             ExifInterface.ORIENTATION_ROTATE_90 -> {
@@ -177,6 +180,7 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
         }
     }
 
+    // 사진 임의로 회전
     private fun rotate(bitmap: Bitmap, degrees: Int): Bitmap {
         if (degrees != 0) {
             val m = Matrix()
@@ -834,7 +838,7 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
         // storage/emulated/0 으로 나와서 일단 하드코딩으로 sdcard 에 저장
         mFile =
             File(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM),
                 "${title}.jpg"
             )
         lockFocus()
