@@ -81,7 +81,7 @@ class EditorActivity : AppCompatActivity() {
         val uri: Uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
         val projection = arrayOf(MediaColumns.DATA, MediaColumns.DISPLAY_NAME)
         val cursor: Cursor? =
-            contentResolver.query(uri, projection, null, null, MediaColumns.DATE_ADDED + " desc")
+            contentResolver.query(uri, projection, null, null, MediaColumns.DATE_TAKEN + " desc")
         val columnIndex: Int = cursor?.getColumnIndexOrThrow(MediaColumns.DATA)!!
         // val columnDisplayName: Int = cursor?.getColumnIndexOrThrow(MediaColumns.DISPLAY_NAME)
         // var lastIndex: Int
@@ -98,8 +98,8 @@ class EditorActivity : AppCompatActivity() {
                 result.add(absolutePathOfImage)
         }
 
-        for (string in result) {
-            Log.i("TAG_EditorActivity", string)
+        for ((index, string) in result.withIndex()) {
+            Log.i("TAG_EditorActivity", "${index}_${string}")
         }
 
         cursor.close()

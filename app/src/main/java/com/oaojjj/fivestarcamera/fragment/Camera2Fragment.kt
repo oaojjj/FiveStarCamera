@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.database.Cursor
 import android.graphics.*
 import android.hardware.camera2.*
 import android.hardware.camera2.CameraCaptureSession.CaptureCallback
@@ -12,6 +13,7 @@ import android.media.Image
 import android.media.ImageReader
 import android.media.ImageReader.OnImageAvailableListener
 import android.media.MediaScannerConnection
+import android.net.Uri
 import android.os.*
 import android.provider.MediaStore
 import android.util.Log
@@ -206,43 +208,81 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
         return bitmap
     }
 
-    // 마지막 이미지 가져오기
-    @RequiresApi(Build.VERSION_CODES.Q)
-    fun getLatestImage(): Bitmap? {
-        val projection = arrayOf(
-            MediaStore.Images.ImageColumns._ID,
-            MediaStore.Images.ImageColumns.DATA,
-            MediaStore.Images.ImageColumns.BUCKET_DISPLAY_NAME,
-            MediaStore.Images.ImageColumns.DATE_TAKEN,
-            MediaStore.Images.ImageColumns.MIME_TYPE
-        )
-        val cursor = mSuper.baseContext.contentResolver.query(
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, null, null,
-            MediaStore.Images.ImageColumns.DATE_TAKEN + " DESC"
-        )
+    /* // 전체 디렉토리 에서 마지막 이미지 가져오기
+     @RequiresApi(Build.VERSION_CODES.Q)
+     fun getLatestImage(): Bitmap? {
+         val projection = arrayOf(
+             MediaStore.Images.ImageColumns._ID,
+             MediaStore.Images.ImageColumns.DATA,
+             MediaStore.Images.ImageColumns.BUCKET_DISPLAY_NAME,
+             MediaStore.Images.ImageColumns.DATE_TAKEN,
+             MediaStore.Images.ImageColumns.MIME_TYPE
+         )
+         val cursor = mSuper.baseContext.contentResolver.query(
+             MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, null, null,
+             MediaStore.Images.ImageColumns.DATE_TAKEN + " DESC"
+         )
 
+         while (cursor!!.moveToFirst()) {
+             val latestImageUri = cursor.getString(1)
+             val imageFile = File(latestImageUri)
+             if (imageFile.exists()) {
+                 cursor.close()
+                 val exif = ExifInterface(latestImageUri)
+                 val exifOrientation = exif.getAttributeInt(
+                     ExifInterface.TAG_ORIENTATION,
+                     ExifInterface.ORIENTATION_NORMAL
+                 )
+                 var bitmap = BitmapFactory.decodeFile(latestImageUri)
+                 val exifDegree = exifOrientationToDegrees(exifOrientation)
+                 bitmap = rotate(bitmap, exifDegree)
+                 return bitmap
+             }
 
-        if (cursor!!.moveToFirst()) {
-            val latestImageUri = cursor.getString(1)
-            val imageFile = File(latestImageUri)
-            if (imageFile.exists()) {
-                cursor.close()
-                val exif = ExifInterface(latestImageUri)
-                val exifOrientation = exif.getAttributeInt(
-                    ExifInterface.TAG_ORIENTATION,
-                    ExifInterface.ORIENTATION_NORMAL
-                )
-                var bitmap = BitmapFactory.decodeFile(latestImageUri)
-                val exifDegree = exifOrientationToDegrees(exifOrientation)
-                bitmap = rotate(bitmap, exifDegree)
-                return bitmap
+         }
+
+         cursor.close()
+         return null
+     }*/
+
+    // 마지막 이미지 불러오기
+    private fun getLatestImage(path: String): Bitmap? {
+        val uri: Uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        val projection = arrayOf(MediaStore.MediaColumns.DATA, MediaStore.MediaColumns.DISPLAY_NAME)
+        val cursor: Cursor? =
+            mSuper.contentResolver.query(
+                uri,
+                projection,
+                null,
+                null,
+                MediaStore.MediaColumns.DATE_ADDED + " desc"
+            )
+        val columnIndex: Int = cursor?.getColumnIndexOrThrow(MediaStore.MediaColumns.DATA)!!
+
+        while (cursor.moveToNext()) {
+            val absolutePathOfImage: String = cursor.getString(columnIndex)
+            val nCol = cursor.getColumnIndex(MediaStore.Images.Media.DATA) // bitmap
+
+            if (cursor.getString(nCol).startsWith(path)) {
+                val imageFile = File(absolutePathOfImage)
+                if (imageFile.exists()) {
+                    cursor.close()
+                    val exif = ExifInterface(absolutePathOfImage)
+                    val exifOrientation = exif.getAttributeInt(
+                        ExifInterface.TAG_ORIENTATION,
+                        ExifInterface.ORIENTATION_NORMAL
+                    )
+                    var bitmap = BitmapFactory.decodeFile(absolutePathOfImage)
+                    val exifDegree = exifOrientationToDegrees(exifOrientation)
+                    bitmap = rotate(bitmap, exifDegree)
+                    return bitmap
+                }
             }
         }
 
         cursor.close()
         return null
     }
-
 
     /**
      * [TextureView.SurfaceTextureListener] handles several lifecycle events on a
@@ -278,6 +318,13 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
      * 사진을 찍은 후의 썸네일에 들어가는 이미지
      */
     private var latestImage: Bitmap? = null
+
+    /**
+     * 이미지 저장 경로
+     */
+    private var path = Environment.getExternalStoragePublicDirectory(
+        Environment.DIRECTORY_DCIM
+    ).toString() + "/Camera"
 
     /**
      * ID of the current [CameraDevice].
@@ -838,7 +885,7 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
         // storage/emulated/0 으로 나와서 일단 하드코딩으로 sdcard 에 저장
         mFile =
             File(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM),
+                path,
                 "${title}.jpg"
             )
         lockFocus()
@@ -934,7 +981,7 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
 
     private fun onSetThumbnail() {
         Log.d(TAG, "onSetThumbnail start")
-        latestImage = getLatestImage()
+        latestImage = getLatestImage(path)
         mSuper.iv_thumbnail.post {
             Glide.with(this).load(latestImage).circleCrop()
                 .into(mSuper.iv_thumbnail)
