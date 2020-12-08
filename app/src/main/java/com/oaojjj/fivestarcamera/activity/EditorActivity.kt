@@ -1,38 +1,49 @@
 package com.oaojjj.fivestarcamera.activity
 
-import android.database.Cursor
-import android.net.Uri
+import android.graphics.Bitmap
 import android.os.Bundle
 import android.os.Environment
-import android.provider.MediaStore
-import android.provider.MediaStore.MediaColumns
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
+import androidx.viewpager2.widget.ViewPager2
+import com.oaojjj.fivestarcamera.PreviewImage
 import com.oaojjj.fivestarcamera.R
+import com.oaojjj.fivestarcamera.adapter.ViewPager2Adapter
+import com.oaojjj.fivestarcamera.controller.ImageController
 import kotlinx.android.synthetic.main.activity_editor.*
 
 
 class EditorActivity : AppCompatActivity() {
+    lateinit var currentImage: Bitmap
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_editor)
 
-        var path = Environment.getExternalStoragePublicDirectory(
+        val path = Environment.getExternalStoragePublicDirectory(
             Environment.DIRECTORY_DCIM
         ).toString() + "/Camera"
 
         // toolbar 지정
         setSupportActionBar(toolbar)
 
-        // 툴바 참조
-        var actionBar = supportActionBar
+        // toolbar 참조
+        val actionBar = supportActionBar
 
         // 뒤로가기 버튼 추가
         actionBar?.setDisplayHomeAsUpEnabled(true)
 
-        getPathOfAllImages(path)
+        val imagePathList = ImageController.instance()?.getPathOfAllImages(baseContext, path)
+        var imagePreviewList: MutableList<PreviewImage> = mutableListOf()
+
+        var i = 0
+        imagePathList?.forEach { s: String -> imagePreviewList.add(PreviewImage(s)) }
+
+        // 어뎁터 연결~
+        vp_image.adapter = ViewPager2Adapter(imagePreviewList)
+        vp_image.orientation = ViewPager2.ORIENTATION_HORIZONTAL
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -73,37 +84,6 @@ class EditorActivity : AppCompatActivity() {
             }
         }
         return super.onOptionsItemSelected(item)
-    }
-
-    // 이미지 목록 불러오기
-    private fun getPathOfAllImages(path: String): ArrayList<String>? {
-        val result: ArrayList<String> = ArrayList()
-        val uri: Uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-        val projection = arrayOf(MediaColumns.DATA, MediaColumns.DISPLAY_NAME)
-        val cursor: Cursor? =
-            contentResolver.query(uri, projection, null, null, MediaColumns.DATE_TAKEN + " desc")
-        val columnIndex: Int = cursor?.getColumnIndexOrThrow(MediaColumns.DATA)!!
-        // val columnDisplayName: Int = cursor?.getColumnIndexOrThrow(MediaColumns.DISPLAY_NAME)
-        // var lastIndex: Int
-
-        while (cursor.moveToNext()) {
-            val absolutePathOfImage: String = cursor.getString(columnIndex)
-            val nCol = cursor.getColumnIndex(MediaStore.Images.Media.DATA) // bitmap
-            // val nameOfFile: String = cursor.getString(columnDisplayName)
-
-            // lastIndex = absolutePathOfImage.lastIndexOf(nameOfFile)
-            // lastIndex = if (lastIndex >= 0) lastIndex else nameOfFile.length - 1
-
-            if (cursor.getString(nCol).startsWith(path))
-                result.add(absolutePathOfImage)
-        }
-
-        for ((index, string) in result.withIndex()) {
-            Log.i("TAG_EditorActivity", "${index}_${string}")
-        }
-
-        cursor.close()
-        return result
     }
 
 }
