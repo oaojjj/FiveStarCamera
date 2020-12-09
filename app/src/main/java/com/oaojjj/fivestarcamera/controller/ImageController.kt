@@ -199,16 +199,14 @@ class ImageController {
                     val animatedValue = it.animatedValue as Float
                     imageView.run {
                         layoutParams.height =
-                            currentImageViewHeight + (heightGap * animatedValue)
-                                .toInt()
+                            currentImageViewHeight + (heightGap * animatedValue).toInt()
                         rotation = currentRotation + toDegree * animatedValue
                         requestLayout()
                     }
                 }
             }.start()
-
-
         }
-
+        // save rotation bitmap
+        Log.d("rotateAlertDialog",image.toString())
     }
 }

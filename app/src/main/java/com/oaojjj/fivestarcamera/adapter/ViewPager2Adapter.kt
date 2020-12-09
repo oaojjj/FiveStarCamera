@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.bumptech.glide.annotation.GlideModule
 import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.RequestListener
@@ -15,49 +16,56 @@ import com.oaojjj.fivestarcamera.PreviewImage
 import com.oaojjj.fivestarcamera.R
 import kotlinx.android.synthetic.main.item_image.view.*
 
-class ViewPager2Adapter(var images: MutableList<PreviewImage>) :
+@GlideModule
+class ViewPager2Adapter(private var images: MutableList<PreviewImage>) :
     RecyclerView.Adapter<ViewPager2Adapter.ImageViewHolder>() {
-    private var currentImage: PreviewImage? = null
 
     inner class ImageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        fun onBind(image: PreviewImage) {
+        fun onBind(index: Int) {
             /*if (image.bitmap == null)
                 image.createBitmap()*/
 
-            Glide.with(itemView)
-                .asBitmap()
-                .load(image.path)
-                .placeholder(R.drawable.ic_waiting)
-                .listener(
-                    object : RequestListener<Bitmap> {
-                        override fun onResourceReady(
-                            resource: Bitmap?,
-                            model: Any?,
-                            target: Target<Bitmap>?,
-                            dataSource: DataSource?,
-                            isFirstResource: Boolean
-                        ): Boolean {
-                            itemView.iv_image.post {
-                                currentImage?.bitmap = resource
-                                currentImage?.path = image.path
-                                itemView.iv_image.setImageBitmap(resource)
+            kotlin.run {
+                Log.d("test", itemView.iv_image.width.toString())
+                Log.d("test", itemView.iv_image.height.toString())
+                Glide.with(itemView)
+                    .asBitmap()
+                    .override(
+                        480,
+                        720
+                    ) // 이거 안해주면 슬라이드시 렉 엄청 걸림
+                    .load(images[index].path)
+                    .listener(
+                        object : RequestListener<Bitmap> {
+                            override fun onResourceReady(
+                                resource: Bitmap?,
+                                model: Any?,
+                                target: Target<Bitmap>?,
+                                dataSource: DataSource?,
+                                isFirstResource: Boolean
+                            ): Boolean {
+                                itemView.iv_image.post {
+                                    Log.d("glide_onResourceReady", images[index].path)
+                                    images[index].bitmap = resource
+                                    itemView.iv_image.setImageBitmap(images[index].bitmap)
+                                }
+                                return false
                             }
-                            return false
-                        }
 
-                        override fun onLoadFailed(
-                            e: GlideException?,
-                            model: Any?,
-                            target: Target<Bitmap>?,
-                            isFirstResource: Boolean
-                        ): Boolean {
-                            return false
+                            override fun onLoadFailed(
+                                e: GlideException?,
+                                model: Any?,
+                                target: Target<Bitmap>?,
+                                isFirstResource: Boolean
+                            ): Boolean {
+                                return false
+                            }
                         }
-
-                    }
-                ).submit()
+                    ).submit()
+            }
         }
     }
+
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ImageViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_image, parent, false)
@@ -66,10 +74,9 @@ class ViewPager2Adapter(var images: MutableList<PreviewImage>) :
 
     override fun onBindViewHolder(holder: ImageViewHolder, position: Int) {
         Log.d("onBindViewHolder", position.toString())
-        holder.onBind(images[position])
+        holder.onBind(position)
     }
 
     override fun getItemCount(): Int = images.size
-
-    fun getCurrentImage(): PreviewImage? = currentImage
+    fun getItems() = images
 }

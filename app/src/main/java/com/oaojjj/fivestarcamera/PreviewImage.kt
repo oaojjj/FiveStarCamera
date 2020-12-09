@@ -7,6 +7,9 @@ import com.oaojjj.fivestarcamera.controller.ImageController
 
 data class PreviewImage(var path: String) {
     var bitmap: Bitmap? = null
+    override fun toString(): String {
+        return "PreviewImage(path='$path', bitmap=$bitmap)"
+    }
 
     // bitmap = BitmapFactory.decodeFile(this.path) 한 줄만 있어도 되는데
     // 안드로이드 버그로 이미지뷰에 회전을 해서 보여주게되서 다시 정상으로 돌려서 넣음

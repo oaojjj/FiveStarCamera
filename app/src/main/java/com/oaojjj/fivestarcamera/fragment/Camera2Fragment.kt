@@ -974,7 +974,7 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
                     } finally {
                         camera.onRefreshGallery()
                         // 딜레이를 안걸어주면 스캔하는 동시에 썸네일을 만들어버려서 바로 찍은 사진이 썸네일에 적용이 안되서 해결하는데 밤샘.. 메모!!
-                        Thread.sleep(500)
+                        Thread.sleep(300)
                         camera.onSetThumbnail()
                     }
                 }

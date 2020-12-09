@@ -7,19 +7,22 @@ import android.view.Menu
 import android.view.MenuItem
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.get
+import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
 import com.oaojjj.fivestarcamera.PreviewImage
 import com.oaojjj.fivestarcamera.R
 import com.oaojjj.fivestarcamera.adapter.ViewPager2Adapter
 import com.oaojjj.fivestarcamera.controller.ImageController
-import com.oaojjj.fivestarcamera.utills.Utils
+import com.oaojjj.fivestarcamera.utills.*
 import kotlinx.android.synthetic.main.activity_editor.*
-import kotlinx.android.synthetic.main.item_image.*
+import kotlinx.android.synthetic.main.item_image.view.*
 
 
 class EditorActivity : AppCompatActivity() {
     lateinit var mAdapter: ViewPager2Adapter
     private val imageController = ImageController.getInstance()
+    private var currentImage: PreviewImage? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,7 +51,19 @@ class EditorActivity : AppCompatActivity() {
         vp_image.apply {
             adapter = mAdapter
             orientation = ViewPager2.ORIENTATION_HORIZONTAL
-            offscreenPageLimit = 5
+            /**
+             * 위의 매소드를 추가안하면 페이지를 엄청 빠르게 슬라이드 할때 이전의 뷰에 보여지는 이미지가 보임.
+             * 하지만 그렇다고 밑의 함수를 추가하고 뷰가 재활용되는 시점에
+             * 어떤 기능을 동작시키면 엄청나게 렉이 걸림..
+             * why?
+             */
+            registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+                override fun onPageSelected(position: Int) {
+                    Log.d("onPageSelected", position.toString())
+                    currentImage = mAdapter.getItems()[position]
+                    super.onPageSelected(position)
+                }
+            })
         }
     }
 
@@ -98,18 +113,17 @@ class EditorActivity : AppCompatActivity() {
         builder
             .setTitle("회전")
             .setCancelable(true)
-            .setNegativeButton("취소") { _, _ -> finish() }
+            .setNegativeButton("취소") { dialog, _ -> dialog.cancel() }
             .setItems(
                 arrayOf("오른쪽으로 회전", "왼쪽으로 회전")
             ) { _, index ->
-                when (index) {
-                    0 -> {
-                        imageController?.setRotation(iv_image, mAdapter.getCurrentImage(), 90)
-                    }
-                    1 -> {
-                        imageController?.setRotation(iv_image, mAdapter.getCurrentImage(), -90)
-                    }
-                }
+                imageController?.setRotation(
+                    (vp_image[0] as RecyclerView).findViewHolderForAdapterPosition(
+                        vp_image.currentItem
+                    )!!.itemView.iv_image,
+                    currentImage,
+                    if (index == 0) 90 else -90
+                )
             }.create().show()
     }
 
