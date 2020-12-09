@@ -15,6 +15,7 @@ import com.oaojjj.fivestarcamera.R
 import com.oaojjj.fivestarcamera.adapter.ViewPager2Adapter
 import com.oaojjj.fivestarcamera.controller.ImageController
 import com.oaojjj.fivestarcamera.utills.*
+import com.oaojjj.fivestarcamera.utills.Utils.path
 import kotlinx.android.synthetic.main.activity_editor.*
 import kotlinx.android.synthetic.main.item_image.view.*
 
@@ -28,10 +29,6 @@ class EditorActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_editor)
         Utils.setDisplaySize(this)
-
-        val path = Environment.getExternalStoragePublicDirectory(
-            Environment.DIRECTORY_DCIM
-        ).toString() + "/Camera"
 
         // toolbar 지정
         setSupportActionBar(toolbar)

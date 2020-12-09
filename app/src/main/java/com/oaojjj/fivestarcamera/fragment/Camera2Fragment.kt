@@ -34,6 +34,9 @@ import com.oaojjj.fivestarcamera.activity.CameraActivity
 import com.oaojjj.fivestarcamera.controller.ImageController
 import com.oaojjj.fivestarcamera.dialog.ConfirmationDialog
 import com.oaojjj.fivestarcamera.dialog.ErrorDialog
+import com.oaojjj.fivestarcamera.utills.Utils.mDir
+import com.oaojjj.fivestarcamera.utills.Utils.onRefreshGallery
+import com.oaojjj.fivestarcamera.utills.Utils.path
 import com.oaojjj.fivestarcamera.view.AutoFitTextureView
 import kotlinx.android.synthetic.main.activity_camera.*
 import java.io.File
@@ -62,7 +65,7 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
         /**
          * Tag for the [Log].
          */
-        private const val TAG = "MyCameraProject"
+        const val TAG = "MyCameraProject"
 
         /**
          * Camera state: Showing camera preview.
@@ -197,13 +200,6 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
      * 사진을 찍은 후의 썸네일에 들어가는 이미지
      */
     private var latestImage: Bitmap? = null
-
-    /**
-     * 이미지 저장 경로
-     */
-    private var path = Environment.getExternalStoragePublicDirectory(
-        Environment.DIRECTORY_DCIM
-    ).toString() + "/Camera"
 
     private var imageController = ImageController.getInstance()
 
@@ -412,6 +408,7 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
 
     override fun onResume() {
         super.onResume()
+        onSetThumbnail()
         startBackgroundThread()
 
         // When the screen is turned off and turned back on, the SurfaceTexture is already
@@ -871,17 +868,6 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
         Log.d(TAG, "onSetThumbnail finished")
     }
 
-    private fun onRefreshGallery() {
-        Log.d(TAG, "onRefreshGallery start")
-        if (mFile != null) {
-            MediaScannerConnection.scanFile(
-                context, arrayOf(mFile!!.path),
-                arrayOf(mFile?.name), null
-            )
-        }
-        Log.d(TAG, "onRefreshGallery finished")
-    }
-
     /**
      * Retrieves the JPEG orientation from the specified screen rotation.
      *
@@ -893,7 +879,8 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
         // We have to take that into account and rotate JPEG properly.
         // For devices with orientation of 90, we simply return our mapping from ORIENTATIONS.
         // For devices with orientation of 270, we need to rotate the JPEG 180 degrees.
-        return (ORIENTATIONS[rotation] + mSensorOrientation + 270) % 180
+        // 버그때문에 값 수정해서 이미지 회전값 조정해야함..ㅋㅋ
+        return  (ORIENTATIONS.get (rotation) + mSensorOrientation + 270) % 360
     }
 
     /**
@@ -954,6 +941,9 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
         private val mFile: File?
     ) : Runnable {
         override fun run() {
+            if (!mDir.exists()) {
+                mDir.mkdir()
+            }
             val buffer = mImage.planes[0].buffer
             val bytes = ByteArray(buffer.remaining())
             buffer[bytes]
@@ -972,7 +962,7 @@ class Camera2Fragment : Fragment(), ActivityCompat.OnRequestPermissionsResultCal
                     } catch (e: IOException) {
                         e.printStackTrace()
                     } finally {
-                        camera.onRefreshGallery()
+                        onRefreshGallery(camera.context, mFile)
                         // 딜레이를 안걸어주면 스캔하는 동시에 썸네일을 만들어버려서 바로 찍은 사진이 썸네일에 적용이 안되서 해결하는데 밤샘.. 메모!!
                         Thread.sleep(300)
                         camera.onSetThumbnail()

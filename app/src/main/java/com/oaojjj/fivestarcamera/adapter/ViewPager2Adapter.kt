@@ -9,11 +9,14 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.annotation.GlideModule
 import com.bumptech.glide.load.DataSource
+import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
+import com.bumptech.glide.signature.ObjectKey
 import com.oaojjj.fivestarcamera.PreviewImage
 import com.oaojjj.fivestarcamera.R
+import com.oaojjj.fivestarcamera.controller.ImageController
 import kotlinx.android.synthetic.main.item_image.view.*
 
 @GlideModule
@@ -30,10 +33,13 @@ class ViewPager2Adapter(private var images: MutableList<PreviewImage>) :
                 Log.d("test", itemView.iv_image.height.toString())
                 Glide.with(itemView)
                     .asBitmap()
-                    .override(
+                    .signature(ObjectKey("signature string"))
+                    .skipMemoryCache(true)
+                    .diskCacheStrategy(DiskCacheStrategy.NONE)
+                 /*   .override(
                         480,
                         720
-                    ) // 이거 안해주면 슬라이드시 렉 엄청 걸림
+                    ) // 이거 안해주면 슬라이드시 렉 엄청 걸림*/
                     .load(images[index].path)
                     .listener(
                         object : RequestListener<Bitmap> {
@@ -45,9 +51,8 @@ class ViewPager2Adapter(private var images: MutableList<PreviewImage>) :
                                 isFirstResource: Boolean
                             ): Boolean {
                                 itemView.iv_image.post {
-                                    Log.d("glide_onResourceReady", images[index].path)
                                     images[index].bitmap = resource
-                                    itemView.iv_image.setImageBitmap(images[index].bitmap)
+                                    itemView.iv_image.setImageBitmap(resource)
                                 }
                                 return false
                             }

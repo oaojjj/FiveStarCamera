@@ -2,20 +2,28 @@ package com.oaojjj.fivestarcamera.controller
 
 import android.animation.ValueAnimator
 import android.content.Context
+import android.content.Intent
 import android.database.Cursor
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.ExifInterface
+import android.media.MediaScannerConnection
 import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
 import android.widget.ImageView
+import com.bumptech.glide.annotation.GlideModule
 import com.oaojjj.fivestarcamera.PreviewImage
 import com.oaojjj.fivestarcamera.utills.Utils.deviceHeight
 import com.oaojjj.fivestarcamera.utills.Utils.deviceWidth
+import com.oaojjj.fivestarcamera.utills.Utils.onRefreshGallery
+import com.oaojjj.fivestarcamera.utills.Utils.path
 import java.io.File
+import java.io.FileOutputStream
 
+
+@GlideModule
 class ImageController {
     companion object {
         private var instance: ImageController? = null
@@ -87,13 +95,9 @@ class ImageController {
                 val imageFile = File(absolutePathOfImage)
                 if (imageFile.exists()) {
                     cursor.close()
-                    val exif = ExifInterface(absolutePathOfImage)
-                    val exifOrientation = exif.getAttributeInt(
-                        ExifInterface.TAG_ORIENTATION,
-                        ExifInterface.ORIENTATION_NORMAL
-                    )
+
                     var bitmap = BitmapFactory.decodeFile(absolutePathOfImage)
-                    val exifDegree = exifOrientationToDegrees(exifOrientation)
+                    val exifDegree = getExifOrientationToDegrees(absolutePathOfImage)
                     bitmap = rotate(bitmap, exifDegree)
                     return bitmap
                 }
@@ -137,7 +141,12 @@ class ImageController {
     }
 
     // 회전 각도 구하기
-    private fun exifOrientationToDegrees(exifOrientation: Int): Int {
+    fun getExifOrientationToDegrees(path: String): Int {
+        val exif = ExifInterface(path)
+        val exifOrientation = exif.getAttributeInt(
+            ExifInterface.TAG_ORIENTATION,
+            ExifInterface.ORIENTATION_NORMAL
+        )
         return when (exifOrientation) {
             ExifInterface.ORIENTATION_ROTATE_90 -> {
                 90
@@ -153,7 +162,7 @@ class ImageController {
     }
 
     // 사진 임의로 회전(비트맵 생성할 때)
-    private fun rotate(bitmap: Bitmap, degrees: Int): Bitmap {
+    fun rotate(bitmap: Bitmap, degrees: Int): Bitmap {
         if (degrees != 0) {
             val m = Matrix()
             m.setRotate(
@@ -193,7 +202,7 @@ class ImageController {
         }
 
         if (currentRotation % 90 == 0.toFloat()) {
-            ValueAnimator.ofFloat(0f, 1f).apply {
+            ValueAnimator.ofFloat(0.1f, 1f).apply {
                 duration = 500
                 addUpdateListener {
                     val animatedValue = it.animatedValue as Float
@@ -202,11 +211,51 @@ class ImageController {
                             currentImageViewHeight + (heightGap * animatedValue).toInt()
                         rotation = currentRotation + toDegree * animatedValue
                         requestLayout()
+
+                        kotlin.run {
+                            // 실제 비트맵 회전
+                            if (image != null && rotation % 90 == 0.toFloat()) {
+                                Log.d("imageView.rotation", "imageView.rotation $toDegree")
+                                val matrix = Matrix().apply {
+                                    setRotate(
+                                        toDegree.toFloat(),
+                                        (image.bitmap!!.width / 2).toFloat(),
+                                        (image.bitmap!!.height / 2).toFloat()
+                                    )
+                                }
+                                image.bitmap = Bitmap.createBitmap(
+                                    image.bitmap!!,
+                                    0,
+                                    0,
+                                    image.bitmap!!.width,
+                                    image.bitmap!!.height,
+                                    matrix,
+                                    true
+                                )
+
+                                // save rotation bitmap
+                                Log.d("rotateAlertDialog", image.toString())
+                                saveBitmap(context, image)
+                            }
+                        }
                     }
                 }
             }.start()
         }
-        // save rotation bitmap
-        Log.d("rotateAlertDialog",image.toString())
+    }
+
+    private fun saveBitmap(context: Context, image: PreviewImage?) {
+        val file = File(image!!.path)
+        try {
+            file.createNewFile() //파일생성
+            val out = FileOutputStream(file)
+            image.bitmap?.compress(Bitmap.CompressFormat.JPEG, 100, out)
+            //bitmap = 갤러리또는 리소스에서 불러온 비트맵 파일에 포맷
+            out.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            onRefreshGallery(context, file)
+        }
     }
 }
