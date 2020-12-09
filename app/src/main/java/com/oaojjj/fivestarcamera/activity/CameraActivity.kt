@@ -9,6 +9,7 @@ import androidx.annotation.RequiresApi
 import com.bumptech.glide.Glide
 import com.oaojjj.fivestarcamera.fragment.Camera2Fragment
 import com.oaojjj.fivestarcamera.R
+import com.oaojjj.fivestarcamera.utills.Utils
 import kotlinx.android.synthetic.main.activity_camera.*
 
 @RequiresApi(Build.VERSION_CODES.Q)

@@ -2,12 +2,17 @@
     <!-- Base application theme. -->
     <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
         <!-- Customize your theme here. -->
-        <item name="colorControlNormal">#ffffff</item>
-        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimary">@color/material_gray500</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
+        <!-- dropDownListViewStyle 추가 -->
+        <item name="android:dropDownListViewStyle">@style/popup</item>
+    </style>
 
-        <item name="android:itemBackground">@drawable/menu_line</item>
+    <!-- popup style 추가 -->
+    <style name="popup" parent="Widget.AppCompat.ListView.DropDown">
+        <item name="android:divider">@color/material_gray300</item>
+        <item name="android:dividerHeight">1dp</item>
     </style>
 
 </resources>

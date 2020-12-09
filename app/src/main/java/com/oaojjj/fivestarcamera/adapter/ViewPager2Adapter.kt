@@ -15,9 +15,9 @@ import com.oaojjj.fivestarcamera.PreviewImage
 import com.oaojjj.fivestarcamera.R
 import kotlinx.android.synthetic.main.item_image.view.*
 
-// 일단 생성자로 이미지 경로만 저장
 class ViewPager2Adapter(var images: MutableList<PreviewImage>) :
     RecyclerView.Adapter<ViewPager2Adapter.ImageViewHolder>() {
+    private var currentImage: PreviewImage? = null
 
     inner class ImageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         fun onBind(image: PreviewImage) {
@@ -38,6 +38,8 @@ class ViewPager2Adapter(var images: MutableList<PreviewImage>) :
                             isFirstResource: Boolean
                         ): Boolean {
                             itemView.iv_image.post {
+                                currentImage?.bitmap = resource
+                                currentImage?.path = image.path
                                 itemView.iv_image.setImageBitmap(resource)
                             }
                             return false
@@ -69,4 +71,5 @@ class ViewPager2Adapter(var images: MutableList<PreviewImage>) :
 
     override fun getItemCount(): Int = images.size
 
+    fun getCurrentImage(): PreviewImage? = currentImage
 }

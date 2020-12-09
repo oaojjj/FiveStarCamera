@@ -1,5 +1,6 @@
 package com.oaojjj.fivestarcamera.controller
 
+import android.animation.ValueAnimator
 import android.content.Context
 import android.database.Cursor
 import android.graphics.Bitmap
@@ -9,22 +10,23 @@ import android.media.ExifInterface
 import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
+import android.widget.ImageView
+import com.oaojjj.fivestarcamera.PreviewImage
+import com.oaojjj.fivestarcamera.utills.Utils.deviceHeight
+import com.oaojjj.fivestarcamera.utills.Utils.deviceWidth
 import java.io.File
 
-class ImageController() {
-
-
+class ImageController {
     companion object {
         private var instance: ImageController? = null
 
-        fun instance(): ImageController? {
+        fun getInstance(): ImageController? {
             if (instance == null) {
                 instance = ImageController()
             }
             return instance
         }
     }
-
 
     /* // 전체 디렉토리 에서 마지막 이미지 가져오기
      @RequiresApi(Build.VERSION_CODES.Q)
@@ -135,23 +137,23 @@ class ImageController() {
     }
 
     // 회전 각도 구하기
-    fun exifOrientationToDegrees(exifOrientation: Int): Int {
+    private fun exifOrientationToDegrees(exifOrientation: Int): Int {
         return when (exifOrientation) {
             ExifInterface.ORIENTATION_ROTATE_90 -> {
                 90
             }
             ExifInterface.ORIENTATION_ROTATE_180 -> {
-                180;
+                180
             }
             ExifInterface.ORIENTATION_ROTATE_270 -> {
-                270;
+                270
             }
             else -> 0
         }
     }
 
-    // 사진 임의로 회전
-    fun rotate(bitmap: Bitmap, degrees: Int): Bitmap {
+    // 사진 임의로 회전(비트맵 생성할 때)
+    private fun rotate(bitmap: Bitmap, degrees: Int): Bitmap {
         if (degrees != 0) {
             val m = Matrix()
             m.setRotate(
@@ -174,5 +176,39 @@ class ImageController() {
 
         }
         return bitmap
+    }
+
+    /**
+     * 아래부터는 이미지 편집 기능을 구현한 메소드
+     * 이미지 회전 애니메이션
+     */
+    // hint -> https://dev3m.tistory.com/entry/%EC%9E%90%EC%97%B0%EC%8A%A4%EB%9F%AC%EC%9A%B4-ImageView-%ED%9A%8C%EC%A0%84-%EC%A0%81%EC%9A%A9%ED%95%98%EA%B8%B0-%EC%B9%B4%EC%B9%B4%EC%98%A4%ED%86%A1-%EC%9D%B4%EB%AF%B8%EC%A7%80-%ED%8E%B8%EC%A7%91
+    fun setRotation(imageView: ImageView, image: PreviewImage?, toDegree: Int) {
+        val currentRotation = imageView.rotation
+        val currentImageViewHeight = imageView.height
+        val heightGap = if (currentImageViewHeight > deviceWidth) {
+            deviceWidth - currentImageViewHeight
+        } else {
+            deviceHeight - currentImageViewHeight
+        }
+
+        if (currentRotation % 90 == 0.toFloat()) {
+            ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = 500
+                addUpdateListener {
+                    val animatedValue = it.animatedValue as Float
+                    imageView.run {
+                        layoutParams.height =
+                            currentImageViewHeight + (heightGap * animatedValue)
+                                .toInt()
+                        rotation = currentRotation + toDegree * animatedValue
+                        requestLayout()
+                    }
+                }
+            }.start()
+
+
+        }
+
     }
 }

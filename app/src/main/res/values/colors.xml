@@ -4,4 +4,7 @@
     <color name="colorPrimaryDark">#000000</color>
     <color name="colorAccent">#03DAC5</color>
     <color name="material_gray500">#9E9E9E</color>
+    <color name="material_gray300">#E0E0E0</color>
+    <color name="my_ripple_material_dark">#33ffffff</color>
+
 </resources>
