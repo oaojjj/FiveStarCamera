@@ -14,5 +14,4 @@
         <item name="android:divider">@color/material_gray300</item>
         <item name="android:dividerHeight">1dp</item>
     </style>
-
 </resources>

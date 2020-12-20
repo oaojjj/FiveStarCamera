@@ -1,6 +1,5 @@
 <resources>
     <string name="app_name">FiveStarCamera</string>
-    <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
     <string name="ok">확인</string>
     <string name="cancle">취소</string>

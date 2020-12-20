@@ -6,5 +6,6 @@
     <color name="material_gray500">#9E9E9E</color>
     <color name="material_gray300">#E0E0E0</color>
     <color name="my_ripple_material_dark">#33ffffff</color>
+    <color name="black_opacity">#33000000</color>
 
 </resources>

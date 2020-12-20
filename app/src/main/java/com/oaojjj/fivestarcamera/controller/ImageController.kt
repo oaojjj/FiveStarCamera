@@ -2,13 +2,11 @@ package com.oaojjj.fivestarcamera.controller
 
 import android.animation.ValueAnimator
 import android.content.Context
-import android.content.Intent
 import android.database.Cursor
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.ExifInterface
-import android.media.MediaScannerConnection
 import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
@@ -190,6 +188,8 @@ class ImageController {
     /**
      * 아래부터는 이미지 편집 기능을 구현한 메소드
      * 이미지 회전 애니메이션
+     * 이미지 저장
+     * 이미지 삭제
      */
     // hint -> https://dev3m.tistory.com/entry/%EC%9E%90%EC%97%B0%EC%8A%A4%EB%9F%AC%EC%9A%B4-ImageView-%ED%9A%8C%EC%A0%84-%EC%A0%81%EC%9A%A9%ED%95%98%EA%B8%B0-%EC%B9%B4%EC%B9%B4%EC%98%A4%ED%86%A1-%EC%9D%B4%EB%AF%B8%EC%A7%80-%ED%8E%B8%EC%A7%91
     fun setRotation(imageView: ImageView, image: PreviewImage?, toDegree: Int) {
@@ -256,6 +256,20 @@ class ImageController {
             e.printStackTrace()
         } finally {
             onRefreshGallery(context, file)
+        }
+    }
+
+    fun deleteImage(image: PreviewImage?) {
+        val file: File? = File(path)
+        val mFile = File(image!!.path)
+        try {
+            file?.listFiles()?.forEach {
+                if (it?.name!! == mFile.name) {
+                    mFile.delete()
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

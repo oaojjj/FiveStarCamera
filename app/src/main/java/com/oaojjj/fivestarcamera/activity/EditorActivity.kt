@@ -1,10 +1,10 @@
 package com.oaojjj.fivestarcamera.activity
 
+import android.annotation.SuppressLint
 import android.os.Bundle
-import android.os.Environment
 import android.util.Log
-import android.view.Menu
-import android.view.MenuItem
+import android.view.*
+import android.widget.ImageView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.get
@@ -15,15 +15,21 @@ import com.oaojjj.fivestarcamera.R
 import com.oaojjj.fivestarcamera.adapter.ViewPager2Adapter
 import com.oaojjj.fivestarcamera.controller.ImageController
 import com.oaojjj.fivestarcamera.utills.*
+import com.oaojjj.fivestarcamera.utills.Utils.onRefreshGallery
 import com.oaojjj.fivestarcamera.utills.Utils.path
 import kotlinx.android.synthetic.main.activity_editor.*
 import kotlinx.android.synthetic.main.item_image.view.*
+import java.io.File
 
 
 class EditorActivity : AppCompatActivity() {
-    lateinit var mAdapter: ViewPager2Adapter
+    private lateinit var mAdapter: ViewPager2Adapter
     private val imageController = ImageController.getInstance()
+
     private var currentImage: PreviewImage? = null
+    private var currentPosition: Int? = 0
+    lateinit var currentView: ImageView
+    lateinit var prevView: ImageView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,35 +39,66 @@ class EditorActivity : AppCompatActivity() {
         // toolbar 지정
         setSupportActionBar(toolbar)
         supportActionBar?.setDisplayShowTitleEnabled(false)
+        toolbar.bringToFront()
 
         // toolbar 참조
         val actionBar = supportActionBar
         actionBar?.setDisplayHomeAsUpEnabled(true)
 
+        // fetch image
+        val imagePreviewList: MutableList<PreviewImage> = fetchImageData()
+
+        /**
+         * adapter
+         * offscreenPageLimit()
+         * 위의 매소드를 추가안하면 페이지를 엄청 빠르게 슬라이드 할때 이전의 뷰에 보여지는 이미지가 보임.
+         * 하지만 그렇다고 밑의 함수를 추가하고 뷰가 재활용되는 시점에
+         * 어떤 기능(회전 등등..)을 동작시키면 엄청나게 렉이 걸림..
+         * why?
+         */
+        mAdapter = ViewPager2Adapter(imagePreviewList)
+        vp_image.apply {
+            adapter = mAdapter.apply { setOnTouchListener(TouchListener()) }
+            orientation = ViewPager2.ORIENTATION_HORIZONTAL
+            offscreenPageLimit = 5
+            registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+                override fun onPageSelected(newPosition: Int) {
+                    mScaleFactor = 1.0f
+
+                    // 현재 뷰홀더의 이미지뷰
+                    if (mAdapter.itemCount > 0) {
+                        currentImage = mAdapter.getItems()[newPosition]
+                    }
+
+                    // 이전의 뷰 저장
+                    if (newPosition != currentPosition) {
+                        prevView = currentView
+                        currentView = getViewFromViewPager()
+                        if (isZoom(prevView)) {
+                            prevView.scaleX = 1.0f
+                            prevView.scaleY = 1.0f
+                        }
+                    } else {
+                        currentView = getViewFromViewPager()
+                    }
+                    currentPosition = newPosition
+
+                    Log.d("onPageSelected", newPosition.toString())
+                    super.onPageSelected(newPosition)
+                }
+            })
+        }
+
+        // pinch to zoom
+        mScaleGestureDetector = ScaleGestureDetector(this, mScaleGestureListener)
+    }
+
+    private fun fetchImageData(): MutableList<PreviewImage> {
         val imagePathList = imageController?.getPathOfAllImages(baseContext, path)
         val imagePreviewList: MutableList<PreviewImage> = mutableListOf()
 
         imagePathList?.forEach { s: String -> imagePreviewList.add(PreviewImage(s)) }
-
-        mAdapter = ViewPager2Adapter(imagePreviewList)
-        // 어뎁터 연결~
-        vp_image.apply {
-            adapter = mAdapter
-            orientation = ViewPager2.ORIENTATION_HORIZONTAL
-            /**
-             * 위의 매소드를 추가안하면 페이지를 엄청 빠르게 슬라이드 할때 이전의 뷰에 보여지는 이미지가 보임.
-             * 하지만 그렇다고 밑의 함수를 추가하고 뷰가 재활용되는 시점에
-             * 어떤 기능을 동작시키면 엄청나게 렉이 걸림..
-             * why?
-             */
-            registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
-                override fun onPageSelected(position: Int) {
-                    Log.d("onPageSelected", position.toString())
-                    currentImage = mAdapter.getItems()[position]
-                    super.onPageSelected(position)
-                }
-            })
-        }
+        return imagePreviewList
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -82,7 +119,7 @@ class EditorActivity : AppCompatActivity() {
             }
             R.id.menu_rotation_image -> {
                 Log.d("EditorA_option_menu", "이미지 회전")
-                rotateAlertDialog()
+                rotationImage()
                 return true
             }
             R.id.menu_cut_image -> {
@@ -97,6 +134,11 @@ class EditorActivity : AppCompatActivity() {
                 Log.d("EditorA_option_menu", "이미지 복사")
                 return true
             }
+            R.id.menu_delete_image -> {
+                deleteImage()
+                Log.d("EditorA_option_menu", "이미지 삭제")
+                return true
+            }
             R.id.menu_info_image -> {
                 Log.d("EditorA_option_menu", "이미지 세부 정보")
                 return true
@@ -105,23 +147,128 @@ class EditorActivity : AppCompatActivity() {
         return super.onOptionsItemSelected(item)
     }
 
-    private fun rotateAlertDialog() {
+    /**
+     * 이미지 pinch to zoom
+     */
+    private lateinit var mScaleGestureDetector: ScaleGestureDetector
+    private var mScaleFactor = 1.0f
+
+    // 두 손가락 터치 이벤트 감지
+    private var mPointerDownFlag = false
+
+    private val mScaleGestureListener =
+        object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(detector: ScaleGestureDetector?): Boolean {
+                mScaleFactor *= detector!!.scaleFactor
+
+                // 최대 20배, 최소 1배 zoom
+                mScaleFactor = Math.max(1f, Math.min(mScaleFactor, 20.0f))
+
+                setCurrentViewScale(mScaleFactor)
+
+                return true
+            }
+        }
+
+    private fun setCurrentViewScale(mScaleFactor: Float) {
+        currentView.scaleX = mScaleFactor
+        currentView.scaleY = mScaleFactor
+    }
+
+    inner class TouchListener : View.OnTouchListener {
+        private var gestureDetector = GestureDetector(this@EditorActivity,
+            object : GestureDetector.SimpleOnGestureListener() {
+                override fun onDoubleTap(e: MotionEvent?): Boolean {
+
+                    if (isZoom(currentView)) setCurrentViewScale(1.0f)
+                    else setCurrentViewScale(2.0f)
+
+                    return super.onDoubleTap(e)
+                }
+            })
+
+        @SuppressLint("ClickableViewAccessibility")
+        override fun onTouch(view: View?, event: MotionEvent): Boolean {
+            mScaleGestureDetector.onTouchEvent(event)
+            gestureDetector.onTouchEvent(event)
+
+            /**
+             * MotionEvent.ACTION_POINTER_2_DOWN 등과 같은 상수들이 전부 deprecated 되었음
+             * 그래서 아래와 같이 멀티터치 이벤트 감지 구현
+             */
+            when (event.action and MotionEvent.ACTION_MASK) {
+                // single touch
+                MotionEvent.ACTION_DOWN -> {
+                    //mPointerDownFlag = false
+                }
+                // multi touch
+                MotionEvent.ACTION_POINTER_DOWN -> {
+                    vp_image.isUserInputEnabled = false
+                    //mPointerDownFlag = true
+                }
+                MotionEvent.ACTION_POINTER_UP -> {
+                    vp_image.isUserInputEnabled = true
+                }
+                MotionEvent.ACTION_UP -> {
+                    //if (event.pointerCount == 1 && !mPointerDownFlag)
+                    val eventDuration = event.eventTime - event.downTime
+                    if (event.pointerCount == 1 && eventDuration > 150)
+                        changeToolbarVisibility()
+                }
+            }
+            return true
+        }
+    }
+
+    /**
+     * 툴바 유무
+     */
+    private fun changeToolbarVisibility() {
+        if (toolbar.visibility == View.VISIBLE) toolbar.visibility = View.GONE
+        else toolbar.visibility = View.VISIBLE
+    }
+
+    private fun isZoom(v: ImageView) = v.scaleX != 1.0f || v.scaleY != 1.0f
+
+    /**
+     * 이미지 조작 기능 메소드
+     */
+
+    private fun rotationImage() {
         val builder = AlertDialog.Builder(this)
         builder
             .setTitle("회전")
             .setCancelable(true)
             .setNegativeButton("취소") { dialog, _ -> dialog.cancel() }
-            .setItems(
-                arrayOf("오른쪽으로 회전", "왼쪽으로 회전")
-            ) { _, index ->
-                imageController?.setRotation(
-                    (vp_image[0] as RecyclerView).findViewHolderForAdapterPosition(
-                        vp_image.currentItem
-                    )!!.itemView.iv_image,
-                    currentImage,
-                    if (index == 0) 90 else -90
-                )
+            .setItems(arrayOf("오른쪽으로 회전", "왼쪽으로 회전")) { _, index ->
+                rotateImage(index)
             }.create().show()
+    }
+
+    private fun deleteImage() {
+        if (mAdapter.itemCount > 0) {
+            if (mAdapter.itemCount == 1)
+                mAdapter.getItems().clear()
+            else
+                mAdapter.getItems().removeAt(currentPosition!!)
+
+            imageController?.deleteImage(currentImage)
+            onRefreshGallery(baseContext, File(currentImage!!.path))
+            mAdapter.notifyDataSetChanged()
+        }
+    }
+
+    private fun rotateImage(index: Int) {
+        imageController?.setRotation(
+            currentView,
+            currentImage,
+            if (index == 0) 90 else -90
+        )
+    }
+
+    private fun getViewFromViewPager(): ImageView {
+        return (vp_image[0] as RecyclerView).findViewHolderForAdapterPosition(vp_image.currentItem)!!
+            .itemView.iv_image
     }
 
 }
