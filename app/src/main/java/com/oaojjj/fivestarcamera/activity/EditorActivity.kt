@@ -1,6 +1,7 @@
 package com.oaojjj.fivestarcamera.activity
 
 import android.annotation.SuppressLint
+import android.graphics.PointF
 import android.os.Bundle
 import android.util.Log
 import android.view.*
@@ -14,7 +15,7 @@ import com.oaojjj.fivestarcamera.PreviewImage
 import com.oaojjj.fivestarcamera.R
 import com.oaojjj.fivestarcamera.adapter.ViewPager2Adapter
 import com.oaojjj.fivestarcamera.controller.ImageController
-import com.oaojjj.fivestarcamera.utills.*
+import com.oaojjj.fivestarcamera.utills.Utils
 import com.oaojjj.fivestarcamera.utills.Utils.onRefreshGallery
 import com.oaojjj.fivestarcamera.utills.Utils.path
 import kotlinx.android.synthetic.main.activity_editor.*
@@ -153,16 +154,27 @@ class EditorActivity : AppCompatActivity() {
     private lateinit var mScaleGestureDetector: ScaleGestureDetector
     private var mScaleFactor = 1.0f
 
+    // 이미지 이동에 사용
+    private var xCoOrdinate = 0f
+    private var yCoOrdinate = 0f
+
+    private var prevX = 0f
+    private var prevY = 0f
+
+    private var scale = 20
+
     // 두 손가락 터치 이벤트 감지
-    private var mPointerDownFlag = false
+    enum class TouchMode { DRAG, ZOOM, TOUCH, NONE }
+
+    private lateinit var touchMode: TouchMode
 
     private val mScaleGestureListener =
         object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(detector: ScaleGestureDetector?): Boolean {
                 mScaleFactor *= detector!!.scaleFactor
 
-                // 최대 20배, 최소 1배 zoom
-                mScaleFactor = Math.max(1f, Math.min(mScaleFactor, 20.0f))
+                // 최대 10배, 최소 1배 zoom
+                mScaleFactor = Math.max(1f, Math.min(mScaleFactor, 10.0f))
 
                 setCurrentViewScale(mScaleFactor)
 
@@ -171,6 +183,8 @@ class EditorActivity : AppCompatActivity() {
         }
 
     private fun setCurrentViewScale(mScaleFactor: Float) {
+        currentView.x = 0f
+        currentView.y = 0f
         currentView.scaleX = mScaleFactor
         currentView.scaleY = mScaleFactor
     }
@@ -179,41 +193,73 @@ class EditorActivity : AppCompatActivity() {
         private var gestureDetector = GestureDetector(this@EditorActivity,
             object : GestureDetector.SimpleOnGestureListener() {
                 override fun onDoubleTap(e: MotionEvent?): Boolean {
-
-                    if (isZoom(currentView)) setCurrentViewScale(1.0f)
-                    else setCurrentViewScale(2.0f)
+                    if (isZoom(currentView)) {
+                        setCurrentViewScale(1.0f)
+                        vp_image.isUserInputEnabled = true
+                    } else {
+                        setCurrentViewScale(2.0f)
+                        vp_image.isUserInputEnabled = false
+                    }
 
                     return super.onDoubleTap(e)
                 }
             })
 
+        // 이미지뷰 이동 hint ->https://sunghyun1038.tistory.com/24
         @SuppressLint("ClickableViewAccessibility")
-        override fun onTouch(view: View?, event: MotionEvent): Boolean {
+        override fun onTouch(view: View, event: MotionEvent): Boolean {
             mScaleGestureDetector.onTouchEvent(event)
             gestureDetector.onTouchEvent(event)
 
             /**
              * MotionEvent.ACTION_POINTER_2_DOWN 등과 같은 상수들이 전부 deprecated 되었음
              * 그래서 아래와 같이 멀티터치 이벤트 감지 구현
+             * 원래 계획은 zoom in 상태에서도 viewpager swipe 를 하고싶었는데
+             * 너무 힘들어서 그냥 zoom out 상태에서만 viewpager swipe 가능
              */
+            val eventDuration = event.eventTime - event.downTime
             when (event.action and MotionEvent.ACTION_MASK) {
                 // single touch
                 MotionEvent.ACTION_DOWN -> {
-                    //mPointerDownFlag = false
+
+                    xCoOrdinate = prevX - event.rawX
+                    yCoOrdinate = prevY - event.rawY
+
+                    touchMode = TouchMode.TOUCH
+                    if (!isZoom(currentView))
+                        vp_image.isUserInputEnabled = true
                 }
                 // multi touch
                 MotionEvent.ACTION_POINTER_DOWN -> {
                     vp_image.isUserInputEnabled = false
-                    //mPointerDownFlag = true
+
+                    touchMode = TouchMode.ZOOM
                 }
                 MotionEvent.ACTION_POINTER_UP -> {
-                    vp_image.isUserInputEnabled = true
+                    touchMode = TouchMode.NONE
                 }
                 MotionEvent.ACTION_UP -> {
-                    //if (event.pointerCount == 1 && !mPointerDownFlag)
-                    val eventDuration = event.eventTime - event.downTime
-                    if (event.pointerCount == 1 && eventDuration > 150)
+                    Log.d("zebar", "${event.pointerCount}/${eventDuration}/${touchMode}")
+                    if (event.pointerCount == 1 && eventDuration > 150 && touchMode == TouchMode.TOUCH)
                         changeToolbarVisibility()
+
+                    prevX = currentView.x
+                    prevY = currentView.y
+
+                    touchMode = TouchMode.NONE
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    // 확대시 이동
+                    if ((touchMode == TouchMode.TOUCH || touchMode == TouchMode.DRAG)
+                        && isZoom(currentView)
+                    ) {
+                        currentView.animate()
+                            .x(event.rawX + xCoOrdinate)
+                            .y(event.rawY + yCoOrdinate)
+                            .setDuration(0)
+                            .start()
+                        touchMode = TouchMode.DRAG
+                    }
                 }
             }
             return true
