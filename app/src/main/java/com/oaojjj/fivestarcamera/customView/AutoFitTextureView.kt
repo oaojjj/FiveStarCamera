@@ -1,4 +1,4 @@
-package com.oaojjj.fivestarcamera.view
+package com.oaojjj.fivestarcamera.customView
 
 import android.content.Context
 import android.util.AttributeSet

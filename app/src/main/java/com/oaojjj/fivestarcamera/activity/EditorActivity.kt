@@ -1,11 +1,14 @@
 package com.oaojjj.fivestarcamera.activity
 
 import android.annotation.SuppressLint
-import android.graphics.PointF
+import android.content.DialogInterface
+import android.content.Intent
 import android.os.Bundle
+import android.provider.DocumentsContract
 import android.util.Log
 import android.view.*
 import android.widget.ImageView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.get
@@ -24,6 +27,11 @@ import java.io.File
 
 
 class EditorActivity : AppCompatActivity() {
+    companion object {
+        private const val CROP_IMAGE: Int = 1000
+        private const val COPY_OR_MOVE_IMAGE: Int = 1001
+    }
+
     private lateinit var mAdapter: ViewPager2Adapter
     private val imageController = ImageController.getInstance()
 
@@ -48,6 +56,7 @@ class EditorActivity : AppCompatActivity() {
 
         // fetch image
         val imagePreviewList: MutableList<PreviewImage> = fetchImageData()
+        currentImage = imagePreviewList[0]
 
         /**
          * adapter
@@ -57,9 +66,12 @@ class EditorActivity : AppCompatActivity() {
          * 어떤 기능(회전 등등..)을 동작시키면 엄청나게 렉이 걸림..
          * why?
          */
-        mAdapter = ViewPager2Adapter(imagePreviewList)
+        mAdapter = ViewPager2Adapter(imagePreviewList).apply {
+            setOnMyTouchListener(TouchListener())
+        }
+
         vp_image.apply {
-            adapter = mAdapter.apply { setOnTouchListener(TouchListener()) }
+            adapter = mAdapter
             orientation = ViewPager2.ORIENTATION_HORIZONTAL
             offscreenPageLimit = 5
             registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
@@ -102,6 +114,36 @@ class EditorActivity : AppCompatActivity() {
         return imagePreviewList
     }
 
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == COPY_OR_MOVE_IMAGE) {
+            if (mAdapter.itemCount > 0) {
+                if (mAdapter.itemCount == 1)
+                    mAdapter.getItems().clear()
+                else
+                    mAdapter.getItems().removeAt(currentPosition!!)
+
+                val docUri = DocumentsContract.buildDocumentUriUsingTree(
+                    data?.data,
+                    DocumentsContract.getTreeDocumentId(data?.data)
+                )
+                val path: String? = Utils.getPath(this, docUri)
+                val toFile = File(path!!)
+                currentImage!!.mFile?.let {
+                    ImageController.getInstance()
+                        ?.copyOrMoveFile(applicationContext, it, toFile, false)
+                }
+                Log.d("hello", toFile.path)
+                Log.d("hello", currentImage!!.mFile!!.path)
+                onRefreshGallery(baseContext, currentImage!!.mFile)
+                onRefreshGallery(baseContext, toFile)
+                mAdapter.notifyDataSetChanged()
+                Toast.makeText(this, "${toFile.path}경로로 이동되었습니다.", Toast.LENGTH_SHORT).show()
+            }
+
+        }
+        super.onActivityResult(requestCode, resultCode, data)
+    }
+
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.editor_toolbar_menu, menu)
         return true
@@ -115,6 +157,13 @@ class EditorActivity : AppCompatActivity() {
                 return true
             }
             R.id.menu_move_image -> {
+                startActivityForResult(
+                    Intent.createChooser(
+                        Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+                            .apply { addCategory(Intent.CATEGORY_DEFAULT) }, "폴더를 선택하세요."
+                    ),
+                    COPY_OR_MOVE_IMAGE
+                )
                 Log.d("EditorA_option_menu", "이미지 이동")
                 return true
             }
@@ -124,6 +173,7 @@ class EditorActivity : AppCompatActivity() {
                 return true
             }
             R.id.menu_cut_image -> {
+                cropImage()
                 Log.d("EditorA_option_menu", "이미지 자르기")
                 return true
             }
@@ -160,8 +210,6 @@ class EditorActivity : AppCompatActivity() {
 
     private var prevX = 0f
     private var prevY = 0f
-
-    private var scale = 20
 
     // 두 손가락 터치 이벤트 감지
     enum class TouchMode { DRAG, ZOOM, TOUCH, NONE }
@@ -280,6 +328,7 @@ class EditorActivity : AppCompatActivity() {
      * 이미지 조작 기능 메소드
      */
 
+
     private fun rotationImage() {
         val builder = AlertDialog.Builder(this)
         builder
@@ -292,16 +341,35 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun deleteImage() {
-        if (mAdapter.itemCount > 0) {
-            if (mAdapter.itemCount == 1)
-                mAdapter.getItems().clear()
-            else
-                mAdapter.getItems().removeAt(currentPosition!!)
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("삭제")
+            .setMessage("정말 삭제하겠습니까?")
+            .setCancelable(true)
+            .setNegativeButton("취소") { dialog, _ -> dialog.cancel() }
+            .setPositiveButton("삭제") { _: DialogInterface, _: Int ->
+                if (mAdapter.itemCount > 0) {
+                    if (mAdapter.itemCount == 1)
+                        mAdapter.getItems().clear()
+                    else
+                        mAdapter.getItems().removeAt(currentPosition!!)
 
-            imageController?.deleteImage(currentImage)
-            onRefreshGallery(baseContext, File(currentImage!!.path))
-            mAdapter.notifyDataSetChanged()
-        }
+                    imageController?.deleteImage(currentImage)
+                    onRefreshGallery(baseContext, File(currentImage!!.path))
+                    mAdapter.notifyDataSetChanged()
+                }
+            }.create().show()
+    }
+
+    private fun cropImage() {
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("자르기")
+            .setCancelable(true)
+            .setNegativeButton("취소") { dialog, _ -> dialog.cancel() }
+            .setItems(arrayOf("사각형 자르기", "자유롭게 자르기")) { _, index ->
+                startActivity(
+                    Intent(this, CropActivity(currentImage!!, index)::class.java)
+                )
+            }.create().show()
     }
 
     private fun rotateImage(index: Int) {

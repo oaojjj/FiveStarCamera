@@ -18,7 +18,12 @@ import com.oaojjj.fivestarcamera.utills.Utils.deviceWidth
 import com.oaojjj.fivestarcamera.utills.Utils.onRefreshGallery
 import com.oaojjj.fivestarcamera.utills.Utils.path
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.nio.channels.FileChannel
+import java.sql.Date
+import java.text.SimpleDateFormat
+import java.util.*
 
 
 @GlideModule
@@ -219,16 +224,16 @@ class ImageController {
                                 val matrix = Matrix().apply {
                                     setRotate(
                                         toDegree.toFloat(),
-                                        (image.bitmap!!.width / 2).toFloat(),
-                                        (image.bitmap!!.height / 2).toFloat()
+                                        (image.mBitmap!!.width / 2).toFloat(),
+                                        (image.mBitmap!!.height / 2).toFloat()
                                     )
                                 }
-                                image.bitmap = Bitmap.createBitmap(
-                                    image.bitmap!!,
+                                image.mBitmap = Bitmap.createBitmap(
+                                    image.mBitmap!!,
                                     0,
                                     0,
-                                    image.bitmap!!.width,
-                                    image.bitmap!!.height,
+                                    image.mBitmap!!.width,
+                                    image.mBitmap!!.height,
                                     matrix,
                                     true
                                 )
@@ -244,12 +249,29 @@ class ImageController {
         }
     }
 
-    private fun saveBitmap(context: Context, image: PreviewImage?) {
+    fun saveBitmap(context: Context, image: PreviewImage?) {
         val file = File(image!!.path)
         try {
-            file.createNewFile() //파일생성
+            file.createNewFile() // 파일생성
             val out = FileOutputStream(file)
-            image.bitmap?.compress(Bitmap.CompressFormat.JPEG, 100, out)
+            image.mBitmap?.compress(Bitmap.CompressFormat.JPEG, 100, out)
+            //bitmap = 갤러리또는 리소스에서 불러온 비트맵 파일에 포맷
+            out.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            onRefreshGallery(context, file)
+        }
+    }
+
+    fun saveBitmap(context: Context, bitmap: Bitmap) {
+        val now = Date(System.currentTimeMillis())
+        val title = SimpleDateFormat("yyyyMMdd_HH:mm:ss", Locale.KOREA).format(now)
+        val file = File(path, "${title}.jpg")
+        try {
+            file.createNewFile() // 파일생성
+            val out = FileOutputStream(file)
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, out)
             //bitmap = 갤러리또는 리소스에서 불러온 비트맵 파일에 포맷
             out.close()
         } catch (e: Exception) {
@@ -270,6 +292,26 @@ class ImageController {
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    fun copyOrMoveFile(context: Context, file: File, dir: File, isCopy: Boolean) {
+        val newFile = File(dir, file.name)
+        var outputChannel: FileChannel? = null
+        var inputChannel: FileChannel? = null
+
+        try {
+            outputChannel = FileOutputStream(newFile).channel
+            inputChannel = FileInputStream(file).channel
+
+            inputChannel.transferTo(0, inputChannel.size(), outputChannel)
+            inputChannel.close()
+
+            if (!isCopy) file.delete()
+        } finally {
+            onRefreshGallery(context, dir)
+            inputChannel?.close()
+            outputChannel?.close()
         }
     }
 }

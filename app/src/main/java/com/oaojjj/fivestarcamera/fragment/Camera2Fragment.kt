@@ -10,7 +10,6 @@ import android.hardware.camera2.CameraCaptureSession.CaptureCallback
 import android.media.Image
 import android.media.ImageReader
 import android.media.ImageReader.OnImageAvailableListener
-import android.media.MediaScannerConnection
 import android.os.*
 import android.util.Log
 import android.util.Size
@@ -37,7 +36,7 @@ import com.oaojjj.fivestarcamera.dialog.ErrorDialog
 import com.oaojjj.fivestarcamera.utills.Utils.mDir
 import com.oaojjj.fivestarcamera.utills.Utils.onRefreshGallery
 import com.oaojjj.fivestarcamera.utills.Utils.path
-import com.oaojjj.fivestarcamera.view.AutoFitTextureView
+import com.oaojjj.fivestarcamera.customView.AutoFitTextureView
 import kotlinx.android.synthetic.main.activity_camera.*
 import java.io.File
 import java.io.FileOutputStream

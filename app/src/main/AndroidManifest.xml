@@ -16,6 +16,8 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
+        <activity android:name=".activity.CroppedActivity"></activity>
+        <activity android:name=".activity.CropActivity" />
         <activity
             android:name=".activity.EditorActivity"
             android:screenOrientation="portrait" />

@@ -46,7 +46,7 @@ class ViewPager2Adapter(private var images: MutableList<PreviewImage>) :
                         ): Boolean {
                             itemView.iv_image.post {
                                 if (resource != null) {
-                                    images[index].bitmap = resource
+                                    images[index].mBitmap = resource
                                     itemView.iv_image.setImageBitmap(resource)
                                 } else {
                                     images.removeAt(index)
@@ -83,7 +83,7 @@ class ViewPager2Adapter(private var images: MutableList<PreviewImage>) :
     override fun getItemCount(): Int = images.size
     fun getItems() = images
 
-    fun setOnTouchListener(listener: View.OnTouchListener) {
+    fun setOnMyTouchListener(listener: View.OnTouchListener) {
         mTouchListener = listener
     }
 }
