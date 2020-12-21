@@ -7,26 +7,24 @@ import com.oaojjj.fivestarcamera.R
 import com.oaojjj.fivestarcamera.customView.CropImageView
 
 class CropActivity() : AppCompatActivity() {
-    // 왜 static 으로 해야 이미지가 넘어오는지 알 수가 없네
+    enum class CropType { RECTANGLE, FREE }
+
     companion object {
         private var mImage: PreviewImage? = null
-        private var mCropMode: Int = 0
+        private var mCropType: CropType? = null
     }
 
-    constructor(image: PreviewImage, cropMode: Int) : this() {
+    constructor(image: PreviewImage, cropType: CropType) : this() {
         mImage = image
-        mCropMode = cropMode
+        mCropType = cropType
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (mCropMode == 0) {
+        if (mCropType == CropType.RECTANGLE) {
             setContentView(R.layout.activity_crop)
         } else {
             setContentView(CropImageView(this, this, mImage!!))
         }
-
-        RESULT_OK
-
     }
 }

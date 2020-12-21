@@ -16,7 +16,7 @@ class CroppedActivity : AppCompatActivity() {
         setContentView(R.layout.activity_cropped)
 
         val bytes = intent.getByteArrayExtra("image")
-        var bitmap: Bitmap? = BitmapFactory.decodeByteArray(
+        val bitmap: Bitmap? = BitmapFactory.decodeByteArray(
             bytes, 0, bytes!!.size
         )
 
@@ -32,11 +32,12 @@ class CroppedActivity : AppCompatActivity() {
             ex.printStackTrace()
         }
 
-        val resultingImage = Bitmap.createBitmap(widthOfScreen, heightOfScreen, bitmap!!.config)
+        val resultingImage =
+            Bitmap.createBitmap(widthOfScreen, heightOfScreen, bitmap!!.config)
 
-        val canvas = Canvas(resultingImage)
-        val paint = Paint()
-        paint.isAntiAlias = true
+        val canvas = Canvas(resultingImage) // 도화지
+        val paint = Paint() // 붓붓
+       paint.isAntiAlias = true
 
         val path = Path()
         for (i in 0 until CropImageView.points.size) {

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.oaojjj.fivestarcamera">
 
     <uses-permission android:name="android.permission.CAMERA" />
@@ -16,8 +17,8 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
-        <activity android:name=".activity.CroppedActivity"></activity>
         <activity android:name=".activity.CropActivity" />
+        <activity android:name=".activity.CroppedActivity" />
         <activity
             android:name=".activity.EditorActivity"
             android:screenOrientation="portrait" />

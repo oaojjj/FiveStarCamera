@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.provider.DocumentsContract
 import android.util.Log
 import android.view.*
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -29,7 +30,8 @@ import java.io.File
 class EditorActivity : AppCompatActivity() {
     companion object {
         private const val CROP_IMAGE: Int = 1000
-        private const val COPY_OR_MOVE_IMAGE: Int = 1001
+        private const val MOVE_IMAGE: Int = 1001
+        private const val COPY_IMAGE: Int = 1002
     }
 
     private lateinit var mAdapter: ViewPager2Adapter
@@ -115,31 +117,39 @@ class EditorActivity : AppCompatActivity() {
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if (requestCode == COPY_OR_MOVE_IMAGE) {
+        if (requestCode == MOVE_IMAGE && data != null) {
             if (mAdapter.itemCount > 0) {
-                if (mAdapter.itemCount == 1)
-                    mAdapter.getItems().clear()
-                else
-                    mAdapter.getItems().removeAt(currentPosition!!)
+                itemRemove()
 
                 val docUri = DocumentsContract.buildDocumentUriUsingTree(
-                    data?.data,
-                    DocumentsContract.getTreeDocumentId(data?.data)
+                    data.data,
+                    DocumentsContract.getTreeDocumentId(data.data)
                 )
-                val path: String? = Utils.getPath(this, docUri)
-                val toFile = File(path!!)
+
+                val toFile = File(Utils.getPath(this, docUri)!!)
                 currentImage!!.mFile?.let {
                     ImageController.getInstance()
                         ?.copyOrMoveFile(applicationContext, it, toFile, false)
+                    mAdapter.notifyDataSetChanged()
                 }
-                Log.d("hello", toFile.path)
-                Log.d("hello", currentImage!!.mFile!!.path)
-                onRefreshGallery(baseContext, currentImage!!.mFile)
-                onRefreshGallery(baseContext, toFile)
-                mAdapter.notifyDataSetChanged()
-                Toast.makeText(this, "${toFile.path}경로로 이동되었습니다.", Toast.LENGTH_SHORT).show()
+
+                Toast.makeText(this, "이미지가 ${toFile.path}경로로 이동 되었습니다.", Toast.LENGTH_SHORT).show()
             }
 
+        } else if (requestCode == COPY_IMAGE && data != null) {
+            val docUri = DocumentsContract.buildDocumentUriUsingTree(
+                data.data,
+                DocumentsContract.getTreeDocumentId(data.data)
+            )
+
+            val toFile = File(Utils.getPath(this, docUri)!!)
+            currentImage!!.mFile?.let {
+                ImageController.getInstance()
+                    ?.copyOrMoveFile(applicationContext, it, toFile, true)
+                mAdapter.notifyDataSetChanged()
+            }
+
+            Toast.makeText(this, "이미지가 ${toFile.path}경로로 복사 되었습니다.", Toast.LENGTH_SHORT).show()
         }
         super.onActivityResult(requestCode, resultCode, data)
     }
@@ -157,13 +167,7 @@ class EditorActivity : AppCompatActivity() {
                 return true
             }
             R.id.menu_move_image -> {
-                startActivityForResult(
-                    Intent.createChooser(
-                        Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-                            .apply { addCategory(Intent.CATEGORY_DEFAULT) }, "폴더를 선택하세요."
-                    ),
-                    COPY_OR_MOVE_IMAGE
-                )
+                fileCopyOrMove(MOVE_IMAGE)
                 Log.d("EditorA_option_menu", "이미지 이동")
                 return true
             }
@@ -178,20 +182,18 @@ class EditorActivity : AppCompatActivity() {
                 return true
             }
             R.id.menu_rename_image -> {
+                renameFile()
                 Log.d("EditorA_option_menu", "이미지 이름 바꾸기")
                 return true
             }
             R.id.menu_copy_image -> {
+                fileCopyOrMove(COPY_IMAGE)
                 Log.d("EditorA_option_menu", "이미지 복사")
                 return true
             }
             R.id.menu_delete_image -> {
                 deleteImage()
                 Log.d("EditorA_option_menu", "이미지 삭제")
-                return true
-            }
-            R.id.menu_info_image -> {
-                Log.d("EditorA_option_menu", "이미지 세부 정보")
                 return true
             }
         }
@@ -348,16 +350,20 @@ class EditorActivity : AppCompatActivity() {
             .setNegativeButton("취소") { dialog, _ -> dialog.cancel() }
             .setPositiveButton("삭제") { _: DialogInterface, _: Int ->
                 if (mAdapter.itemCount > 0) {
-                    if (mAdapter.itemCount == 1)
-                        mAdapter.getItems().clear()
-                    else
-                        mAdapter.getItems().removeAt(currentPosition!!)
+                    itemRemove()
 
                     imageController?.deleteImage(currentImage)
                     onRefreshGallery(baseContext, File(currentImage!!.path))
                     mAdapter.notifyDataSetChanged()
                 }
             }.create().show()
+    }
+
+    private fun itemRemove() {
+        if (mAdapter.itemCount == 1)
+            mAdapter.getItems().clear()
+        else
+            mAdapter.getItems().removeAt(currentPosition!!)
     }
 
     private fun cropImage() {
@@ -367,7 +373,14 @@ class EditorActivity : AppCompatActivity() {
             .setNegativeButton("취소") { dialog, _ -> dialog.cancel() }
             .setItems(arrayOf("사각형 자르기", "자유롭게 자르기")) { _, index ->
                 startActivity(
-                    Intent(this, CropActivity(currentImage!!, index)::class.java)
+                    Intent(
+                        this,
+                        CropActivity(
+                            currentImage!!,
+                            if (index == 0) CropActivity.CropType.RECTANGLE
+                            else CropActivity.CropType.FREE
+                        )::class.java
+                    )
                 )
             }.create().show()
     }
@@ -385,4 +398,30 @@ class EditorActivity : AppCompatActivity() {
             .itemView.iv_image
     }
 
+    private fun fileCopyOrMove(requestCode: Int) {
+        startActivityForResult(
+            Intent.createChooser(
+                Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+                    .apply { addCategory(Intent.CATEGORY_DEFAULT) }, "폴더를 선택하세요."
+            ),
+            requestCode
+        )
+    }
+
+    private fun renameFile() {
+        val etName = EditText(this)
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("이름 입력")
+            .setCancelable(true)
+            .setView(etName)
+            .setNegativeButton("취소") { dialog, _ -> dialog.cancel() }
+            .setPositiveButton("바꾸기") { dialog, _ ->
+                if (etName.text.isNullOrBlank() || etName.text.isEmpty()) {
+                    Toast.makeText(this, "이름을 입력하세요.", Toast.LENGTH_SHORT).show()
+                } else {
+                    ImageController.getInstance()!!
+                        .renameFile(this, currentImage?.mFile, etName.text.toString())
+                }
+            }.create().show()
+    }
 }

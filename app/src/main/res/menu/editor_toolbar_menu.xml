@@ -32,9 +32,5 @@
         android:id="@+id/menu_delete_image"
         android:title="삭제"
         app:showAsAction="never" />
-    <item
-        android:id="@+id/menu_info_image"
-        android:title="세부 정보"
-        app:showAsAction="never" />
 
 </menu>

@@ -11,6 +11,7 @@ import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
 import android.widget.ImageView
+import android.widget.Toast
 import com.bumptech.glide.annotation.GlideModule
 import com.oaojjj.fivestarcamera.PreviewImage
 import com.oaojjj.fivestarcamera.utills.Utils.deviceHeight
@@ -309,9 +310,17 @@ class ImageController {
 
             if (!isCopy) file.delete()
         } finally {
+            onRefreshGallery(context, file)
             onRefreshGallery(context, dir)
             inputChannel?.close()
             outputChannel?.close()
         }
+    }
+
+    fun renameFile(context: Context, mFile: File?, text: String) {
+        val newFile = File(path, "$text.jpg")
+        if (mFile!!.renameTo(newFile)) {
+            Toast.makeText(context, "이름 변경 성공", Toast.LENGTH_SHORT).show()
+        } else Toast.makeText(context, "이름 변경 실패", Toast.LENGTH_SHORT).show()
     }
 }
